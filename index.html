@@ -8,18 +8,12 @@
   <title>PARTH JARVIS</title>
 
   <style>
-    * {
-      box-sizing: border-box;
-    }
+    * { box-sizing: border-box; }
 
     body {
       margin: 0;
       min-height: 100vh;
-      background: radial-gradient(
-        circle at top,
-        #102b4c,
-        #050914 65%
-      );
+      background: radial-gradient(circle at top, #102b4c, #050914 65%);
       color: #eaf7ff;
       font-family: Arial, sans-serif;
     }
@@ -66,8 +60,7 @@
       display: grid;
       place-items: center;
       margin: 35px auto 20px;
-      box-shadow: 0 0 25px #008cff,
-                  inset 0 0 25px #087dcb;
+      box-shadow: 0 0 25px #008cff, inset 0 0 25px #087dcb;
       animation: pulse 3s infinite;
     }
 
@@ -79,8 +72,7 @@
 
     @keyframes pulse {
       50% {
-        box-shadow: 0 0 45px #008cff,
-                    inset 0 0 35px #087dcb;
+        box-shadow: 0 0 45px #008cff, inset 0 0 35px #087dcb;
       }
     }
 
@@ -89,6 +81,7 @@
       font-size: 12px;
       letter-spacing: 2px;
       margin: 20px 0;
+      overflow-wrap: anywhere;
     }
 
     .panel {
@@ -119,13 +112,8 @@
       overflow-wrap: anywhere;
     }
 
-    .user {
-      color: #69d6ff;
-    }
-
-    .jarvis {
-      color: #c3d7ed;
-    }
+    .user { color: #69d6ff; }
+    .jarvis { color: #c3d7ed; }
 
     .controls {
       display: flex;
@@ -154,9 +142,7 @@
       cursor: pointer;
     }
 
-    button:disabled {
-      opacity: 0.5;
-    }
+    button:disabled { opacity: 0.5; cursor: wait; }
 
     .voice {
       width: 100%;
@@ -180,26 +166,24 @@
 
 <header>
   <div class="logo">PARTH JARVIS</div>
-  <div class="online">● VOICE READY</div>
+  <div class="online" id="connectionStatus">● SYSTEM READY</div>
 </header>
 
 <main>
-
   <h2>PERSONAL AI ASSISTANT</h2>
 
-  <div class="core">
-    <span>J</span>
-  </div>
+  <div class="core"><span>J</span></div>
 
-  <div id="status">READY FOR YOUR COMMAND</div>
+  <div id="status" role="status" aria-live="polite">
+    READY FOR YOUR COMMAND
+  </div>
 
   <section class="panel">
     <h3>AI COMMUNICATION CENTER</h3>
 
-    <div id="chat">
+    <div id="chat" aria-live="polite">
       <div class="message jarvis">
-        JARVIS: Hello! I am ready for voice testing.
-        My Gemini AI connection will be added next.
+JARVIS: Hello! I am PARTH JARVIS, your personal AI assistant. How can I help you today?
       </div>
     </div>
 
@@ -208,13 +192,14 @@
         id="userInput"
         placeholder="Ask anything..."
         autocomplete="off"
+        aria-label="Your message"
       >
       <button id="sendButton" onclick="sendMessage()">
         SEND
       </button>
     </div>
 
-    <button class="voice" onclick="startListening()">
+    <button class="voice" id="talkButton" onclick="startListening()">
       🎙 TALK TO JARVIS
     </button>
 
@@ -229,44 +214,67 @@
 
   <div class="small">
     PARTH JARVIS • PERSONAL AI ASSISTANT<br>
-    VERSION 3.0 • VOICE TEST
+    VERSION 4.0 • GEMINI AI + VOICE
   </div>
-
 </main>
 
 <script>
+"use strict";
+
+// Cloudflare Worker endpoint.
+// Gemini API key stays securely in the Worker secret.
+const API_URL =
+  "https://parth-jarvis-api.kangralkarparth1.workers.dev/";
+
 const chat = document.getElementById("chat");
 const statusText = document.getElementById("status");
 const input = document.getElementById("userInput");
+const sendButton = document.getElementById("sendButton");
+const talkButton = document.getElementById("talkButton");
+const connectionStatus =
+  document.getElementById("connectionStatus");
 
 let recognition = null;
 let listening = false;
+let busy = false;
+let currentSpeech = null;
+
+function setStatus(message) {
+  statusText.textContent = message;
+}
 
 function addMessage(type, text) {
   const div = document.createElement("div");
-
   div.className = "message " + type;
   div.textContent =
     (type === "user" ? "YOU: " : "JARVIS: ") + text;
 
   chat.appendChild(div);
   chat.scrollTop = chat.scrollHeight;
-
   return div;
 }
 
 function speak(text) {
   if (!("speechSynthesis" in window)) {
-    addMessage("jarvis", "Voice output is unavailable.");
     return;
   }
 
   window.speechSynthesis.cancel();
 
   const utterance = new SpeechSynthesisUtterance(text);
+  currentSpeech = utterance;
+
   utterance.lang = "en-IN";
   utterance.rate = 0.95;
   utterance.pitch = 1;
+  utterance.volume = 1;
+
+  utterance.onerror = function(event) {
+    if (event.error !== "canceled" &&
+        event.error !== "interrupted") {
+      console.warn("Speech output error:", event.error);
+    }
+  };
 
   window.speechSynthesis.speak(utterance);
 }
@@ -275,82 +283,220 @@ function stopSpeaking() {
   if ("speechSynthesis" in window) {
     window.speechSynthesis.cancel();
   }
+
+  currentSpeech = null;
+
+  if (recognition && listening) {
+    recognition.stop();
+  }
+
+  if (!busy) {
+    setStatus("READY FOR YOUR COMMAND");
+  }
 }
 
-function sendMessage() {
+async function sendMessage() {
   const message = input.value.trim();
 
-  if (!message) return;
+  if (!message || busy) return;
+
+  busy = true;
+  sendButton.disabled = true;
+  talkButton.disabled = true;
 
   addMessage("user", message);
   input.value = "";
 
-  const reply =
-    "I heard your message: " + message +
-    ". My Gemini AI connection is not configured yet.";
+  setStatus("JARVIS IS THINKING...");
+  connectionStatus.textContent = "● AI PROCESSING";
 
-  addMessage("jarvis", reply);
+  const thinking = addMessage(
+    "jarvis",
+    "Thinking..."
+  );
 
-  statusText.textContent = "READY FOR YOUR COMMAND";
-  speak(reply);
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(
+      () => controller.abort(),
+      45000
+    );
+
+    let response;
+
+    try {
+      response = await fetch(API_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ message: message }),
+        signal: controller.signal
+      });
+    } finally {
+      clearTimeout(timeout);
+    }
+
+    const rawText = await response.text();
+
+    let data;
+
+    try {
+      data = JSON.parse(rawText);
+    } catch {
+      throw new Error(
+        "Server returned an invalid response. " +
+        "Check your Cloudflare Worker."
+      );
+    }
+
+    if (!response.ok) {
+      throw new Error(
+        data.error ||
+        "AI server error (" + response.status + ")"
+      );
+    }
+
+    const reply =
+      typeof data.reply === "string"
+        ? data.reply.trim()
+        : "";
+
+    if (!reply) {
+      throw new Error(
+        "AI returned an empty reply. Check the Worker response."
+      );
+    }
+
+    thinking.textContent = "JARVIS: " + reply;
+    chat.scrollTop = chat.scrollHeight;
+
+    setStatus("READY FOR YOUR COMMAND");
+    connectionStatus.textContent = "● AI CONNECTED";
+
+    speak(reply);
+
+  } catch (error) {
+    let message = error.message || "Unknown error";
+
+    if (error.name === "AbortError") {
+      message = "The AI request timed out. Please try again.";
+    } else if (error instanceof TypeError) {
+      message =
+        "Cannot reach the AI server. Check the Worker URL, " +
+        "internet connection, and CORS settings.";
+    }
+
+    thinking.textContent = "JARVIS: ERROR: " + message;
+    chat.scrollTop = chat.scrollHeight;
+
+    setStatus("AI CONNECTION ERROR");
+    connectionStatus.textContent = "● CONNECTION ERROR";
+
+    console.error("JARVIS request failed:", error);
+
+  } finally {
+    busy = false;
+    sendButton.disabled = false;
+    talkButton.disabled = false;
+    input.focus();
+  }
 }
 
 input.addEventListener("keydown", function(event) {
-  if (event.key === "Enter") {
+  if (event.key === "Enter" && !event.repeat) {
+    event.preventDefault();
     sendMessage();
   }
 });
 
 function startListening() {
+  if (busy || listening) return;
+
   const Recognition =
     window.SpeechRecognition ||
     window.webkitSpeechRecognition;
 
   if (!Recognition) {
-    statusText.textContent = "VOICE NOT SUPPORTED";
+    setStatus("VOICE NOT SUPPORTED");
     addMessage(
       "jarvis",
-      "Speech recognition is unavailable in this browser."
+      "This browser does not support speech recognition. " +
+      "You can still type messages. Try an updated " +
+      "Chrome browser on desktop or Android."
     );
     return;
   }
 
-  if (listening) return;
+  if (!window.isSecureContext) {
+    setStatus("SECURE CONNECTION REQUIRED");
+    addMessage(
+      "jarvis",
+      "Microphone recognition requires a secure HTTPS page."
+    );
+    return;
+  }
+
+  stopSpeaking();
 
   recognition = new Recognition();
-
   recognition.lang = "en-IN";
   recognition.interimResults = false;
+  recognition.continuous = false;
   recognition.maxAlternatives = 1;
 
   recognition.onstart = function() {
     listening = true;
-    statusText.textContent = "LISTENING...";
+    setStatus("LISTENING...");
+    talkButton.textContent = "🎙 LISTENING...";
   };
 
   recognition.onresult = function(event) {
     const transcript =
-      event.results[0][0].transcript;
+      event.results[0][0].transcript.trim();
 
-    input.value = transcript;
-    sendMessage();
+    if (transcript) {
+      input.value = transcript;
+      setStatus("VOICE RECOGNIZED");
+      sendMessage();
+    }
   };
 
   recognition.onerror = function(event) {
-    statusText.textContent =
-      "VOICE ERROR: " + event.error;
+    listening = false;
 
-    addMessage(
-      "jarvis",
-      "Speech recognition error: " + event.error
-    );
+    talkButton.textContent = "🎙 TALK TO JARVIS";
+    setStatus("VOICE ERROR: " + event.error);
+
+    let explanation =
+      "Speech recognition error: " + event.error;
+
+    if (event.error === "not-allowed" ||
+        event.error === "service-not-allowed") {
+      explanation =
+        "Microphone access was denied or speech recognition " +
+        "was blocked. Check Chrome microphone permissions " +
+        "and your operating system's microphone settings.";
+    } else if (event.error === "no-speech") {
+      explanation =
+        "I could not hear speech. Please try again.";
+    } else if (event.error === "network") {
+      explanation =
+        "The speech recognition service had a network error.";
+    } else if (event.error === "audio-capture") {
+      explanation =
+        "No working microphone was detected.";
+    }
+
+    addMessage("jarvis", explanation);
   };
 
   recognition.onend = function() {
     listening = false;
+    talkButton.textContent = "🎙 TALK TO JARVIS";
 
     if (statusText.textContent === "LISTENING...") {
-      statusText.textContent = "READY FOR YOUR COMMAND";
+      setStatus("READY FOR YOUR COMMAND");
     }
   };
 
@@ -358,9 +504,13 @@ function startListening() {
     recognition.start();
   } catch (error) {
     listening = false;
-    statusText.textContent = "VOICE START FAILED";
+    talkButton.textContent = "🎙 TALK TO JARVIS";
+    setStatus("VOICE START FAILED");
 
-    addMessage("jarvis", error.message);
+    addMessage(
+      "jarvis",
+      error.message || "Unable to start microphone."
+    );
   }
 }
 </script>
