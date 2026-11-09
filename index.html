@@ -1,0 +1,369 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#050914">
+  <title>PARTH JARVIS</title>
+
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: radial-gradient(
+        circle at top,
+        #102b4c,
+        #050914 65%
+      );
+      color: #eaf7ff;
+      font-family: Arial, sans-serif;
+    }
+
+    header {
+      padding: 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid #16436b;
+    }
+
+    .logo {
+      color: #43caff;
+      font-size: 21px;
+      font-weight: bold;
+      letter-spacing: 2px;
+    }
+
+    .online {
+      color: #4be7b1;
+      font-size: 11px;
+    }
+
+    main {
+      max-width: 600px;
+      margin: auto;
+      padding: 25px 16px;
+      text-align: center;
+    }
+
+    h2 {
+      color: #a9dcff;
+      font-size: 15px;
+      font-weight: normal;
+      letter-spacing: 3px;
+    }
+
+    .core {
+      width: 155px;
+      height: 155px;
+      border: 2px solid #25baff;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      margin: 35px auto 20px;
+      box-shadow: 0 0 25px #008cff,
+                  inset 0 0 25px #087dcb;
+      animation: pulse 3s infinite;
+    }
+
+    .core span {
+      font-size: 48px;
+      color: #66dfff;
+      text-shadow: 0 0 20px #00aaff;
+    }
+
+    @keyframes pulse {
+      50% {
+        box-shadow: 0 0 45px #008cff,
+                    inset 0 0 35px #087dcb;
+      }
+    }
+
+    #status {
+      color: #58ceff;
+      font-size: 12px;
+      letter-spacing: 2px;
+      margin: 20px 0;
+    }
+
+    .panel {
+      background: #0b1728;
+      border: 1px solid #16436b;
+      border-radius: 15px;
+      padding: 16px;
+      text-align: left;
+      margin-top: 25px;
+    }
+
+    .panel h3 {
+      color: #55caff;
+      font-size: 14px;
+      letter-spacing: 2px;
+    }
+
+    #chat {
+      height: 280px;
+      overflow-y: auto;
+      line-height: 1.6;
+      font-size: 14px;
+    }
+
+    .message {
+      margin: 12px 0;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+    }
+
+    .user {
+      color: #69d6ff;
+    }
+
+    .jarvis {
+      color: #c3d7ed;
+    }
+
+    .controls {
+      display: flex;
+      gap: 8px;
+      margin-top: 15px;
+    }
+
+    input {
+      flex: 1;
+      min-width: 0;
+      background: #101f32;
+      color: white;
+      border: 1px solid #28608d;
+      border-radius: 10px;
+      padding: 13px;
+      font-size: 15px;
+    }
+
+    button {
+      background: #087dce;
+      border: none;
+      color: white;
+      border-radius: 10px;
+      padding: 13px 16px;
+      font-size: 14px;
+      cursor: pointer;
+    }
+
+    button:disabled {
+      opacity: 0.5;
+    }
+
+    .voice {
+      width: 100%;
+      margin-top: 12px;
+      padding: 16px;
+      background: #075c9c;
+      letter-spacing: 1px;
+    }
+
+    .small {
+      text-align: center;
+      color: #829bb8;
+      font-size: 11px;
+      margin: 25px 0;
+      line-height: 1.7;
+    }
+  </style>
+</head>
+
+<body>
+
+<header>
+  <div class="logo">PARTH JARVIS</div>
+  <div class="online">● VOICE READY</div>
+</header>
+
+<main>
+
+  <h2>PERSONAL AI ASSISTANT</h2>
+
+  <div class="core">
+    <span>J</span>
+  </div>
+
+  <div id="status">READY FOR YOUR COMMAND</div>
+
+  <section class="panel">
+    <h3>AI COMMUNICATION CENTER</h3>
+
+    <div id="chat">
+      <div class="message jarvis">
+        JARVIS: Hello! I am ready for voice testing.
+        My Gemini AI connection will be added next.
+      </div>
+    </div>
+
+    <div class="controls">
+      <input
+        id="userInput"
+        placeholder="Ask anything..."
+        autocomplete="off"
+      >
+      <button id="sendButton" onclick="sendMessage()">
+        SEND
+      </button>
+    </div>
+
+    <button class="voice" onclick="startListening()">
+      🎙 TALK TO JARVIS
+    </button>
+
+    <button
+      class="voice"
+      onclick="stopSpeaking()"
+      style="background:#263e58"
+    >
+      STOP VOICE
+    </button>
+  </section>
+
+  <div class="small">
+    PARTH JARVIS • PERSONAL AI ASSISTANT<br>
+    VERSION 3.0 • VOICE TEST
+  </div>
+
+</main>
+
+<script>
+const chat = document.getElementById("chat");
+const statusText = document.getElementById("status");
+const input = document.getElementById("userInput");
+
+let recognition = null;
+let listening = false;
+
+function addMessage(type, text) {
+  const div = document.createElement("div");
+
+  div.className = "message " + type;
+  div.textContent =
+    (type === "user" ? "YOU: " : "JARVIS: ") + text;
+
+  chat.appendChild(div);
+  chat.scrollTop = chat.scrollHeight;
+
+  return div;
+}
+
+function speak(text) {
+  if (!("speechSynthesis" in window)) {
+    addMessage("jarvis", "Voice output is unavailable.");
+    return;
+  }
+
+  window.speechSynthesis.cancel();
+
+  const utterance = new SpeechSynthesisUtterance(text);
+  utterance.lang = "en-IN";
+  utterance.rate = 0.95;
+  utterance.pitch = 1;
+
+  window.speechSynthesis.speak(utterance);
+}
+
+function stopSpeaking() {
+  if ("speechSynthesis" in window) {
+    window.speechSynthesis.cancel();
+  }
+}
+
+function sendMessage() {
+  const message = input.value.trim();
+
+  if (!message) return;
+
+  addMessage("user", message);
+  input.value = "";
+
+  const reply =
+    "I heard your message: " + message +
+    ". My Gemini AI connection is not configured yet.";
+
+  addMessage("jarvis", reply);
+
+  statusText.textContent = "READY FOR YOUR COMMAND";
+  speak(reply);
+}
+
+input.addEventListener("keydown", function(event) {
+  if (event.key === "Enter") {
+    sendMessage();
+  }
+});
+
+function startListening() {
+  const Recognition =
+    window.SpeechRecognition ||
+    window.webkitSpeechRecognition;
+
+  if (!Recognition) {
+    statusText.textContent = "VOICE NOT SUPPORTED";
+    addMessage(
+      "jarvis",
+      "Speech recognition is unavailable in this browser."
+    );
+    return;
+  }
+
+  if (listening) return;
+
+  recognition = new Recognition();
+
+  recognition.lang = "en-IN";
+  recognition.interimResults = false;
+  recognition.maxAlternatives = 1;
+
+  recognition.onstart = function() {
+    listening = true;
+    statusText.textContent = "LISTENING...";
+  };
+
+  recognition.onresult = function(event) {
+    const transcript =
+      event.results[0][0].transcript;
+
+    input.value = transcript;
+    sendMessage();
+  };
+
+  recognition.onerror = function(event) {
+    statusText.textContent =
+      "VOICE ERROR: " + event.error;
+
+    addMessage(
+      "jarvis",
+      "Speech recognition error: " + event.error
+    );
+  };
+
+  recognition.onend = function() {
+    listening = false;
+
+    if (statusText.textContent === "LISTENING...") {
+      statusText.textContent = "READY FOR YOUR COMMAND";
+    }
+  };
+
+  try {
+    recognition.start();
+  } catch (error) {
+    listening = false;
+    statusText.textContent = "VOICE START FAILED";
+
+    addMessage("jarvis", error.message);
+  }
+}
+</script>
+
+</body>
+</html>
