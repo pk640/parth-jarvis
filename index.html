@@ -210,6 +210,10 @@ JARVIS: Hello! I am PARTH JARVIS, your personal AI assistant. How can I help you
     >
       STOP VOICE
     </button>
+
+    <button class="voice" id="speakReplyButton" onclick="speakLastReply()" style="background:#087dce">
+      🔊 SPEAK REPLY
+    </button>
   </section>
 
   <div class="small">
@@ -254,29 +258,67 @@ function addMessage(type, text) {
   return div;
 }
 
+// Keep the latest successful reply so iPhone users can replay it with a tap.
+let lastJarvisReply = "";
+
 function speak(text) {
-  if (!("speechSynthesis" in window)) {
+  if (!("speechSynthesis" in window) ||
+      !("SpeechSynthesisUtterance" in window)) {
+    setStatus("VOICE OUTPUT NOT SUPPORTED");
     return;
   }
 
-  window.speechSynthesis.cancel();
+  const synth = window.speechSynthesis;
+  synth.cancel();
 
   const utterance = new SpeechSynthesisUtterance(text);
   currentSpeech = utterance;
-
   utterance.lang = "en-IN";
   utterance.rate = 0.95;
   utterance.pitch = 1;
   utterance.volume = 1;
 
+  // Prefer an English voice that this browser actually provides.
+  const voices = synth.getVoices();
+  const voice = voices.find(v => v.lang === "en-IN") ||
+                voices.find(v => v.lang === "en-US") ||
+                voices.find(v => v.lang.toLowerCase().startsWith("en"));
+  if (voice) utterance.voice = voice;
+
+  utterance.onstart = function() {
+    setStatus("JARVIS IS SPEAKING...");
+  };
+  utterance.onend = function() {
+    if (currentSpeech === utterance) {
+      currentSpeech = null;
+      if (!busy) setStatus("READY FOR YOUR COMMAND");
+    }
+  };
   utterance.onerror = function(event) {
-    if (event.error !== "canceled" &&
-        event.error !== "interrupted") {
-      console.warn("Speech output error:", event.error);
+    if (currentSpeech !== utterance) return;
+    currentSpeech = null;
+    if (event.error !== "canceled" && event.error !== "interrupted") {
+      console.warn("JARVIS speech error:", event.error);
+      setStatus("VOICE ERROR: " + event.error);
     }
   };
 
-  window.speechSynthesis.speak(utterance);
+  try {
+    synth.speak(utterance);
+  } catch (error) {
+    currentSpeech = null;
+    console.warn("JARVIS speech failed:", error);
+    setStatus("VOICE PLAYBACK FAILED");
+  }
+}
+
+function speakLastReply() {
+  if (!lastJarvisReply) {
+    setStatus("ASK JARVIS SOMETHING FIRST");
+    return;
+  }
+  // Called directly by a tap, which may be required for iPhone playback.
+  speak(lastJarvisReply);
 }
 
 function stopSpeaking() {
@@ -374,6 +416,7 @@ async function sendMessage() {
     setStatus("READY FOR YOUR COMMAND");
     connectionStatus.textContent = "● AI CONNECTED";
 
+    lastJarvisReply = reply;
     speak(reply);
 
   } catch (error) {
